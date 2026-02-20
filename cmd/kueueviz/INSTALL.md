@@ -10,7 +10,12 @@ configure and run `KueueViz`:
 
 ```
 kubectl -n kueue-system port-forward svc/kueue-kueueviz-backend 8080:8080 &
-kubectl -n kueue-system set env deployment kueue-kueueviz-frontend REACT_APP_WEBSOCKET_URL=ws://localhost:8080
+kubectl patch configmap kueue-kueueviz-frontend-env -n kueue-system --type merge -p '{
+  "data": {
+    "env.js": "window.env = { REACT_APP_WEBSOCKET_URL: \"ws://localhost:8080\", VITE_WEBSOCKET_URL: \"ws://localhost:8080\" };"
+  }
+}'
+kubectl rollout restart deployment/kueue-kueueviz-frontend -n kueue-system
 kubectl -n kueue-system port-forward svc/kueue-kueueviz-frontend 3000:8080
 ```
 

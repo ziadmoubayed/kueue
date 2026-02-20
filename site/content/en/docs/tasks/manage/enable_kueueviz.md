@@ -79,7 +79,16 @@ kubectl port-forward svc/kueue-kueueviz-frontend -n kueue-system 8080
 kubectl port-forward svc/kueue-kueueviz-backend  -n kueue-system 8081:8080
 ```
 
-Edit the kueue-viz-frontend Deployment to set env `REACT_APP_WEBSOCKET_URL=ws://localhost:8081`.
+Patch the frontend ConfigMap to point to the local backend:
+
+```bash
+kubectl patch configmap kueue-kueueviz-frontend-env -n kueue-system --type merge -p '{
+  "data": {
+    "env.js": "window.env = { REACT_APP_WEBSOCKET_URL: \"ws://localhost:8081\", VITE_WEBSOCKET_URL: \"ws://localhost:8081\" };"
+  }
+}'
+kubectl rollout restart deployment/kueue-kueueviz-frontend -n kueue-system
+```
 
 Then access the dashboard at [http://localhost:8080](http://localhost:8080).
 
@@ -142,6 +151,26 @@ spec:
 
 ## Upgrade
 
+{{% alert title="Breaking change in v0.17" color="warning" %}}
+Starting from v0.17, the KueueViz frontend no longer reads `REACT_APP_WEBSOCKET_URL` from a container
+environment variable. The backend WebSocket URL is now configured via a `ConfigMap` (`kueue-kueueviz-frontend-env`)
+that is mounted into the frontend container as `env.js`.
+
+When upgrading with Helm, the ConfigMap is automatically rendered from `kueueViz.backend.ingress.host`
+and `kueueViz.backend.ingress.tlsSecretName` — no manual action is required.
+
+When upgrading with YAML (`kubectl apply`), patch the ConfigMap after applying the new manifests:
+
+```bash
+kubectl patch configmap kueue-kueueviz-frontend-env -n kueue-system --type merge -p '{
+  "data": {
+    "env.js": "window.env = { REACT_APP_WEBSOCKET_URL: \"wss://<your-backend-host>\", VITE_WEBSOCKET_URL: \"wss://<your-backend-host>\" };"
+  }
+}'
+kubectl rollout restart deployment/kueue-kueueviz-frontend -n kueue-system
+```
+{{% /alert %}}
+
 ### Upgrade by Helm
 
 To upgrade KueueViz by Helm:
@@ -152,6 +181,9 @@ helm upgrade kueue oci://registry.k8s.io/kueue/charts/kueue \
   --namespace kueue-system \
   --set enableKueueViz=true
 ```
+
+The WebSocket URL in the frontend ConfigMap is automatically derived from `kueueViz.backend.ingress.host`
+and uses `wss://` if `kueueViz.backend.ingress.tlsSecretName` is set, or `ws://` otherwise.
 
 ### Upgrade by YAML
 

@@ -27,3 +27,12 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
+          volumeMounts:
+            - name: env-js
+              mountPath: /app/build/env.js
+              subPath: env.js
+              readOnly: true
+      volumes:
+        - name: env-js
+          configMap:
+            name: kueueviz-frontend-env
