@@ -130,7 +130,6 @@ const ClusterQueueDetail = () => {
                 <TableCell>Usage</TableCell>
                 {showReservation && <TableCell>Reservation</TableCell>}
                 <TableCell>Borrowed</TableCell>
-                <TableCell>Available</TableCell>
                 <TableCell>Borrowing Limit</TableCell>
                 <TableCell>Lending Limit</TableCell>
                 <TableCell sx={{ minWidth: 200 }}>Utilization</TableCell>
@@ -147,7 +146,6 @@ const ClusterQueueDetail = () => {
                         const usageVal = parseResourceQuantity(usageRes?.total);
                         const borrowedVal = parseResourceQuantity(usageRes?.borrowed);
                         const quotaVal = parseResourceQuantity(resource.nominalQuota);
-                        const available = Math.max(0, quotaVal - usageVal);
                         const resName = String(resource.name);
 
                         const reservationFlavor = clusterQueue.status?.flavorsReservation?.find(f => f.name === flavor.name);
@@ -177,7 +175,6 @@ const ClusterQueueDetail = () => {
                             <TableCell>{formatVal(usageVal)}</TableCell>
                             {showReservation && <TableCell>{formatVal(reservationVal)}</TableCell>}
                             <TableCell>{formatVal(borrowedVal)}</TableCell>
-                            <TableCell>{formatVal(available)}</TableCell>
                             <TableCell>{resource.borrowingLimit}</TableCell>
                             <TableCell>{resource.lendingLimit}</TableCell>
                             <TableCell>
