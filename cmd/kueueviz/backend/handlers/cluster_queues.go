@@ -81,6 +81,8 @@ func (h *Handlers) fetchClusterQueues(ctx context.Context) ([]map[string]any, er
 			"pendingWorkloads":   pendingWorkloads,
 			"reservingWorkloads": reservingWorkloads,
 			"flavors":            flavors,
+			"flavorsUsage":       item.Status.FlavorsUsage,
+			"flavorsReservation": item.Status.FlavorsReservation,
 		})
 	}
 
