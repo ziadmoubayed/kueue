@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/apimachinery/pkg/runtime"
