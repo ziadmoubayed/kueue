@@ -89,7 +89,8 @@ const ClusterQueues = () => {
                       <TableCell key={resName}>
                         {r.quota > 0 || r.usage > 0 ? (
                           <UsageBar usage={r.usage} borrowed={r.borrowed} quota={r.quota}
-                            effectiveQuota={computeEffectiveQuota(r)} label={resName} compact />
+                            effectiveQuota={computeEffectiveQuota(r)} unlimitedBorrowing={r.unlimitedBorrowing}
+                            label={resName} compact />
                         ) : '-'}
                       </TableCell>
                     );

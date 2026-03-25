@@ -21,7 +21,7 @@ import useWebSocket from './useWebSocket';
 import './App.css';
 import ErrorMessage from './ErrorMessage';
 import ViewYamlButton from './ViewYamlButton';
-import { parseResourceQuantity, formatResourceValue, discoverResourceNames } from './UsageBar';
+import { toNumber, formatResourceValue, discoverResourceNames } from './UsageBar';
 
 const LocalQueues = () => {
   const { data: localQueues, error } = useWebSocket('/ws/local-queues');
@@ -95,7 +95,7 @@ const LocalQueues = () => {
                       let total = 0;
                       (queue.status?.flavorsUsage || []).forEach(f => {
                         (f.resources || []).forEach(r => {
-                          if (String(r.name) === resName) total += parseResourceQuantity(r.total);
+                          if (String(r.name) === resName) total += toNumber(r.total);
                         });
                       });
                       return (

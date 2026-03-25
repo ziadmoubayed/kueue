@@ -20,7 +20,7 @@ import { Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHe
 import useWebSocket from './useWebSocket';
 import './App.css';
 import ErrorMessage from './ErrorMessage';
-import UsageBar, { parseResourceQuantity, formatResourceValue, computeEffectiveQuota } from './UsageBar';
+import UsageBar, { toNumber, formatResourceValue, computeEffectiveQuota } from './UsageBar';
 
 const CohortDetail = () => {
   const { cohortName } = useParams();
@@ -68,25 +68,24 @@ const CohortDetail = () => {
 
         const aggregated = {};
         resourceNames.forEach(resName => {
-          let totalQuota = 0, totalUsage = 0, totalBorrowed = 0;
+          let totalQuota = 0, totalUsage = 0;
           cohortDetails.clusterQueues.forEach(cq => {
             (cq.spec?.resourceGroups || []).forEach(rg => {
               (rg.flavors || []).forEach(f => {
                 (f.resources || []).forEach(r => {
-                  if (String(r.name) === resName) totalQuota += parseResourceQuantity(r.nominalQuota);
+                  if (String(r.name) === resName) totalQuota += toNumber(r.nominalQuota);
                 });
               });
             });
             (cq.status?.flavorsUsage || []).forEach(f => {
               (f.resources || []).forEach(r => {
                 if (String(r.name) === resName) {
-                  totalUsage += parseResourceQuantity(r.total);
-                  totalBorrowed += parseResourceQuantity(r.borrowed);
+                  totalUsage += toNumber(r.total);
                 }
               });
             });
           });
-          aggregated[resName] = { quota: totalQuota, usage: totalUsage, borrowed: totalBorrowed };
+          aggregated[resName] = { quota: totalQuota, usage: totalUsage };
         });
 
         return (
@@ -99,10 +98,9 @@ const CohortDetail = () => {
                 <Grid item xs={12} sm={4} key={resName}>
                   <Paper elevation={2} sx={{ p: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>{resName}</Typography>
-                    <UsageBar usage={data.usage} borrowed={data.borrowed} quota={data.quota} label={resName} />
+                    <UsageBar usage={data.usage} quota={data.quota} label={resName} />
                     <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
                       {formatResourceValue(data.usage, resName)} / {formatResourceValue(data.quota, resName)}
-                      {data.borrowed > 0 ? ` (${formatResourceValue(data.borrowed, resName)} borrowed)` : ''}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -138,10 +136,10 @@ const CohortDetail = () => {
                               (rg.flavors || []).forEach(f => {
                                 (f.resources || []).forEach(r => {
                                   if (String(r.name) === resName) {
-                                    quota += parseResourceQuantity(r.nominalQuota);
+                                    quota += toNumber(r.nominalQuota);
                                     if (r.borrowingLimit != null) {
                                       hasExplicitBorrowingLimit = true;
-                                      borrowingLimitTotal += parseResourceQuantity(r.borrowingLimit);
+                                      borrowingLimitTotal += toNumber(r.borrowingLimit);
                                     }
                                   }
                                 });
@@ -150,13 +148,14 @@ const CohortDetail = () => {
                             (cq.status?.flavorsUsage || []).forEach(f => {
                               (f.resources || []).forEach(r => {
                                 if (String(r.name) === resName) {
-                                  usage += parseResourceQuantity(r.total);
-                                  borrowed += parseResourceQuantity(r.borrowed);
+                                  usage += toNumber(r.total);
+                                  borrowed += toNumber(r.borrowed);
                                 }
                               });
                             });
                             const borrowingLimit = hasExplicitBorrowingLimit ? borrowingLimitTotal : null;
-                            perRes[resName] = { quota, usage, borrowed, borrowingLimit };
+                            const unlimitedBorrowing = !hasExplicitBorrowingLimit;
+                            perRes[resName] = { quota, usage, borrowed, borrowingLimit, unlimitedBorrowing };
                           });
                           return (
                             <TableRow key={cq.name}>
@@ -168,7 +167,7 @@ const CohortDetail = () => {
                                 <TableCell key={resName}>
                                   <UsageBar usage={perRes[resName].usage} borrowed={perRes[resName].borrowed}
                                     quota={perRes[resName].quota} effectiveQuota={computeEffectiveQuota(perRes[resName])}
-                                    label={resName} compact />
+                                    unlimitedBorrowing={perRes[resName].unlimitedBorrowing} label={resName} compact />
                                 </TableCell>
                               ))}
                             </TableRow>

@@ -18,30 +18,14 @@ import React from 'react';
 import { Box, Tooltip, Typography } from '@mui/material';
 
 /**
- * Parse a Kubernetes resource quantity string to a numeric value.
- * Handles: "500m" (millicores), "500Mi", "500Gi", "4250m", "0", "2", etc.
- * Returns a numeric value in base units (cores for CPU, bytes for memory).
+ * Coerce a resource value to a number.
+ * The backend returns pre-parsed numeric values using Go's resource.Quantity
+ * parser, so this is a simple numeric coercion for safety.
  */
-export function parseResourceQuantity(str) {
-  if (str === undefined || str === null || str === '') return 0;
-  const s = String(str).trim();
-  if (s === '0') return 0;
-
-  // Millicores: e.g. "4250m"
-  if (s.endsWith('m') && !s.endsWith('Mi')) {
-    return parseFloat(s.slice(0, -1)) / 1000;
-  }
-  // Binary suffixes
-  if (s.endsWith('Ki')) return parseFloat(s.slice(0, -2)) * 1024;
-  if (s.endsWith('Mi')) return parseFloat(s.slice(0, -2)) * 1024 * 1024;
-  if (s.endsWith('Gi')) return parseFloat(s.slice(0, -2)) * 1024 * 1024 * 1024;
-  if (s.endsWith('Ti')) return parseFloat(s.slice(0, -2)) * 1024 * 1024 * 1024 * 1024;
-  // Decimal suffixes
-  if (s.endsWith('k')) return parseFloat(s.slice(0, -1)) * 1000;
-  if (s.endsWith('M')) return parseFloat(s.slice(0, -1)) * 1000000;
-  if (s.endsWith('G')) return parseFloat(s.slice(0, -1)) * 1000000000;
-
-  return parseFloat(s) || 0;
+export function toNumber(v) {
+  if (v === undefined || v === null) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
@@ -84,10 +68,10 @@ export function aggregateResourceForQueue(queue, resourceName) {
     for (const flavor of (rg.flavors || [])) {
       for (const res of (flavor.resources || [])) {
         if (String(res.name) === resourceName) {
-          quota += parseResourceQuantity(res.nominalQuota);
+          quota += toNumber(res.nominalQuota);
           if (res.borrowingLimit != null) {
             hasExplicitBorrowingLimit = true;
-            borrowingLimitTotal += parseResourceQuantity(res.borrowingLimit);
+            borrowingLimitTotal += toNumber(res.borrowingLimit);
           }
         }
       }
@@ -98,21 +82,31 @@ export function aggregateResourceForQueue(queue, resourceName) {
   for (const flavor of flavorsUsage) {
     for (const res of (flavor.resources || [])) {
       if (String(res.name) === resourceName) {
-        usage += parseResourceQuantity(res.total);
-        borrowed += parseResourceQuantity(res.borrowed);
+        usage += toNumber(res.total);
+        borrowed += toNumber(res.borrowed);
       }
     }
   }
 
+  // null means unlimited borrowing (in a cohort with no explicit limit).
+  // 0 means no borrowing (not in a cohort).
   const borrowingLimit = hasExplicitBorrowingLimit ? borrowingLimitTotal : (inCohort ? null : 0);
-  return { usage, borrowed, quota, borrowingLimit };
+  const unlimitedBorrowing = !hasExplicitBorrowingLimit && inCohort;
+  return { usage, borrowed, quota, borrowingLimit, unlimitedBorrowing };
 }
 
 /**
  * Compute the effective quota ceiling from aggregation results.
- * Returns undefined if no finite borrowing limit (bar should use nominal quota).
+ *
+ * - Finite borrowingLimit: ceiling = quota + borrowingLimit
+ * - Unlimited borrowing (null): ceiling = max(quota, usage) so that
+ *   legitimate borrowed usage is never shown as overflow.
+ * - No borrowing (0 or not in cohort): returns undefined (bar uses nominal quota).
  */
 export function computeEffectiveQuota(r) {
+  if (r.unlimitedBorrowing) {
+    return r.usage > r.quota ? r.usage : undefined;
+  }
   if (r.borrowingLimit != null && r.borrowingLimit > 0) return r.quota + r.borrowingLimit;
   return undefined;
 }
@@ -158,11 +152,12 @@ export function discoverResourceNames(queues) {
  *   borrowed       - numeric, how much of usage is borrowed
  *   quota          - numeric, nominal quota
  *   effectiveQuota - numeric (optional), nominalQuota + borrowingLimit; bar scales to this ceiling
+ *   unlimitedBorrowing - boolean, if true the queue can borrow without limit
  *   label          - string, resource label (e.g. "cpu", "memory")
  *   compact        - boolean, if true renders a smaller version for table cells
  *   showText       - boolean, if true shows usage/quota text (default true)
  */
-const UsageBar = ({ usage = 0, borrowed = 0, quota = 0, effectiveQuota, label = '', compact = false, showText = true }) => {
+const UsageBar = ({ usage = 0, borrowed = 0, quota = 0, effectiveQuota, unlimitedBorrowing = false, label = '', compact = false, showText = true }) => {
   const ceiling = (effectiveQuota != null && effectiveQuota > quota) ? effectiveQuota : quota;
   const showQuotaMarker = effectiveQuota != null && effectiveQuota > quota && ceiling > 0;
   const quotaMarkerPercent = ceiling > 0 ? Math.min((quota / ceiling) * 100, 100) : 0;
@@ -187,11 +182,15 @@ const UsageBar = ({ usage = 0, borrowed = 0, quota = 0, effectiveQuota, label = 
         Usage: {formatResourceValue(usage, label)} / {formatResourceValue(quota, label)}
         {quota > 0 ? ` (${nominalPercent}% of nominal)` : ''}
       </Typography>
-      {showQuotaMarker && (
+      {unlimitedBorrowing ? (
+        <Typography variant="caption" display="block">
+          Borrowing limit: unlimited
+        </Typography>
+      ) : showQuotaMarker ? (
         <Typography variant="caption" display="block">
           Effective limit: {formatResourceValue(effectiveQuota, label)} (nominal + borrowing limit)
         </Typography>
-      )}
+      ) : null}
       {borrowed > 0 && (
         <Typography variant="caption" display="block">
           Borrowed: {formatResourceValue(borrowed, label)}

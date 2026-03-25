@@ -24,7 +24,7 @@ import useWebSocket from './useWebSocket';
 import './App.css';
 import { AccessTime, Check, CheckBox, CheckCircle } from '@mui/icons-material';
 import ErrorMessage from './ErrorMessage';
-import UsageBar, { aggregateResourceForQueue, computeEffectiveQuota, discoverResourceNames, formatResourceValue } from './UsageBar';
+import UsageBar, { aggregateResourceForQueue, discoverResourceNames, formatResourceValue } from './UsageBar';
 
 const Dashboard = () => {
   const [queues, setQueues] = useState([]);
@@ -200,15 +200,15 @@ const Dashboard = () => {
                           </TableCell>
                           <TableCell>{cqs.length}</TableCell>
                           {resourceNames.map(resName => {
-                            let usage = 0, borrowed = 0, quota = 0;
+                            let usage = 0, quota = 0;
                             cqs.forEach(cq => {
                               const r = aggregateResourceForQueue(cq, resName);
-                              usage += r.usage; borrowed += r.borrowed; quota += r.quota;
+                              usage += r.usage; quota += r.quota;
                             });
                             return (
                               <TableCell key={resName}>
                                 {quota > 0 || usage > 0 ? (
-                                  <UsageBar usage={usage} borrowed={borrowed} quota={quota} label={resName} compact />
+                                  <UsageBar usage={usage} quota={quota} label={resName} compact />
                                 ) : '-'}
                               </TableCell>
                             );

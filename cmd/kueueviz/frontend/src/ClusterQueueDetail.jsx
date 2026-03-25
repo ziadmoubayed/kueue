@@ -21,7 +21,7 @@ import useWebSocket from './useWebSocket';
 import './App.css';
 import FlavorTable from './FlavorTable';
 import ErrorMessage from './ErrorMessage';
-import UsageBar, { parseResourceQuantity } from './UsageBar';
+import UsageBar, { toNumber, formatResourceValue, computeEffectiveQuota } from './UsageBar';
 
 const ClusterQueueDetail = () => {
   const { clusterQueueName } = useParams();
@@ -143,18 +143,21 @@ const ClusterQueueDetail = () => {
                       {flavor.resources.map((resource, resourceIndex) => {
                         const usageFlavor = clusterQueue.status?.flavorsUsage?.find(f => f.name === flavor.name);
                         const usageRes = usageFlavor?.resources?.find(r => r.name === resource.name);
-                        const usageVal = parseResourceQuantity(usageRes?.total);
-                        const borrowedVal = parseResourceQuantity(usageRes?.borrowed);
-                        const quotaVal = parseResourceQuantity(resource.nominalQuota);
+                        const usageVal = toNumber(usageRes?.total);
+                        const borrowedVal = toNumber(usageRes?.borrowed);
+                        const quotaVal = toNumber(resource.nominalQuota);
                         const resName = String(resource.name);
 
                         const reservationFlavor = clusterQueue.status?.flavorsReservation?.find(f => f.name === flavor.name);
                         const reservationRes = reservationFlavor?.resources?.find(r => r.name === resource.name);
-                        const reservationVal = parseResourceQuantity(reservationRes?.total);
+                        const reservationVal = toNumber(reservationRes?.total);
 
-                        const borrowingLimitVal = parseResourceQuantity(resource.borrowingLimit);
+                        const borrowingLimitVal = toNumber(resource.borrowingLimit);
                         const hasBorrowingLimit = resource.borrowingLimit != null;
-                        const effectiveQuota = hasBorrowingLimit && borrowingLimitVal > 0 ? quotaVal + borrowingLimitVal : undefined;
+                        const inCohort = !!(clusterQueue.spec?.cohortName);
+                        const unlimitedBorrowing = !hasBorrowingLimit && inCohort;
+                        const r = { usage: usageVal, borrowed: borrowedVal, quota: quotaVal, borrowingLimit: hasBorrowingLimit ? borrowingLimitVal : (inCohort ? null : 0), unlimitedBorrowing };
+                        const effectiveQuota = computeEffectiveQuota(r);
 
                         const formatVal = (v) => {
                           if (v === 0) return '0';
@@ -171,15 +174,15 @@ const ClusterQueueDetail = () => {
                               </TableCell>
                             )}
                             <TableCell>{resource.name}</TableCell>
-                            <TableCell>{resource.nominalQuota}</TableCell>
+                            <TableCell>{formatVal(quotaVal)}</TableCell>
                             <TableCell>{formatVal(usageVal)}</TableCell>
                             {showReservation && <TableCell>{formatVal(reservationVal)}</TableCell>}
                             <TableCell>{formatVal(borrowedVal)}</TableCell>
-                            <TableCell>{resource.borrowingLimit}</TableCell>
-                            <TableCell>{resource.lendingLimit}</TableCell>
+                            <TableCell>{hasBorrowingLimit ? formatVal(borrowingLimitVal) : ''}</TableCell>
+                            <TableCell>{resource.lendingLimit != null ? formatVal(toNumber(resource.lendingLimit)) : ''}</TableCell>
                             <TableCell>
                               <UsageBar usage={usageVal} borrowed={borrowedVal} quota={quotaVal}
-                                effectiveQuota={effectiveQuota} label={resName} />
+                                effectiveQuota={effectiveQuota} unlimitedBorrowing={unlimitedBorrowing} label={resName} />
                             </TableCell>
                           </TableRow>
                         );
@@ -234,10 +237,13 @@ const ClusterQueueDetail = () => {
 
                           {/* Display Resource Name, Reservation, and Usage */}
                           <TableCell>{resource.name}</TableCell>
-                          <TableCell>{resource.total}</TableCell>
+                          <TableCell>{formatResourceValue(toNumber(resource.total), String(resource.name))}</TableCell>
                           <TableCell>
-                            {queue.usage?.find((usage) => usage.name === reservation.name)
-                              ?.resources?.find((res) => res.name === resource.name)?.total || 'N/A'}
+                            {(() => {
+                              const usageRes = queue.usage?.find((u) => u.name === reservation.name)
+                                ?.resources?.find((res) => res.name === resource.name);
+                              return usageRes ? formatResourceValue(toNumber(usageRes.total), String(resource.name)) : 'N/A';
+                            })()}
                           </TableCell>
                         </TableRow>
                       ))}
