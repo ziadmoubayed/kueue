@@ -152,7 +152,7 @@ endef
 
 define _kueueviz_unit_test_recipe
 cd $(PROJECT_DIR)/cmd/kueueviz/backend && go test ./... -v
-cd $(PROJECT_DIR)/cmd/kueueviz/frontend && npm install --ignore-scripts && npm test
+$(PROJECT_DIR)/hack/testing/kueueviz-unit-test/verify.sh $(PROJECT_DIR)/cmd/kueueviz/frontend
 endef
 
 # ---- verify-* wrappers (generation prereqs + shared recipe) ---------------
