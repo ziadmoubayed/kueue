@@ -89,7 +89,7 @@ verify-tree-prereqs: verify-go-prereqs verify-docs-prereqs verify-helm-prereqs
 ## Read-only verification targets that should not mutate the repo.
 ## Add new check-only targets here.
 verify-checks: ## Phase 2 (parallel): checks that should run after generation completes.
-verify-checks: verify-ci-lint verify-lint-api verify-fmt-verify verify-shell-lint verify-helm-verify verify-helm-unit-test verify-npm-depcheck
+verify-checks: verify-ci-lint verify-lint-api verify-fmt-verify verify-shell-lint verify-helm-verify verify-helm-unit-test verify-npm-depcheck verify-kueueviz-unit-test
 
 # ---- Shared check recipes -------------------------------------------------
 # Each recipe is stored in a variable so that both the lightweight standalone
@@ -150,6 +150,11 @@ $(PROJECT_DIR)/hack/testing/depcheck/verify.sh $(PROJECT_DIR)/cmd/kueueviz/front
 $(PROJECT_DIR)/hack/testing/depcheck/verify.sh $(PROJECT_DIR)/test/e2e/kueueviz
 endef
 
+define _kueueviz_unit_test_recipe
+cd $(PROJECT_DIR)/cmd/kueueviz/backend && go test ./... -v
+cd $(PROJECT_DIR)/cmd/kueueviz/frontend && npm install --ignore-scripts && npm test
+endef
+
 # ---- verify-* wrappers (generation prereqs + shared recipe) ---------------
 
 .PHONY: verify-ci-lint
@@ -179,6 +184,10 @@ verify-helm-unit-test: verify-tree-prereqs helm helm-unittest-plugin ## Helm uni
 .PHONY: verify-npm-depcheck
 verify-npm-depcheck: verify-tree-prereqs prepare-release-branch ## Depcheck after generation
 	$(_npm_depcheck_recipe)
+
+.PHONY: verify-kueueviz-unit-test
+verify-kueueviz-unit-test: verify-tree-prereqs ## KueueViz backend (Go) and frontend (vitest) unit tests after generation
+	$(_kueueviz_unit_test_recipe)
 
 # ---- Standalone targets (lightweight, for local use) ----------------------
 
@@ -225,6 +234,10 @@ helm-unit-test: helm helm-unittest-plugin ## Run Helm unit tests for the kueue c
 .PHONY: npm-depcheck
 npm-depcheck: ## Verify frontend and e2e npm dependencies.
 	$(_npm_depcheck_recipe)
+
+.PHONY: kueueviz-unit-test
+kueueviz-unit-test: ## Run KueueViz backend (Go) and frontend (vitest) unit tests.
+	$(_kueueviz_unit_test_recipe)
 
 .PHONY: verify-website-links
 verify-website-links: ## Check for broken internal links on the public website.
